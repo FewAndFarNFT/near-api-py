@@ -6,6 +6,7 @@ import base58
 
 import near_api
 from near_api import transactions
+from .utils import exponential_backoff, decode_near_success_value
 
 # Amount of gas attached by default 1e14.
 DEFAULT_ATTACHED_GAS = 100_000_000_000_000
@@ -35,17 +36,23 @@ class Account(object):
         # print(account_id, self._account, self._access_key)
 
     def _sign_and_submit_tx(self, receiver_id: str, actions: List['transactions.Action']) -> dict:
+        """Returns NEAR TX Result with addition of `success_value_decoded` (will be a string or None if no SuccessValue present)"""
         self._access_key['nonce'] += 1
         block_hash = self._provider.get_status()['sync_info']['latest_block_hash']
         block_hash = base58.b58decode(block_hash.encode('utf8'))
         serialized_tx = transactions.sign_and_serialize_transaction(
             receiver_id, self._access_key['nonce'], actions, block_hash, self._signer)
-        result: dict = self._provider.send_tx_and_wait(serialized_tx, 10)
+        result: dict = exponential_backoff(
+            lambda: self._provider.send_tx_and_wait(serialized_tx, 10)
+        )
         for outcome in itertools.chain([result['transaction_outcome']], result['receipts_outcome']):
             for log in outcome['outcome']['logs']:
                 print("Log:", log)
         if 'Failure' in result['status']:
             raise TransactionError(result['status']['Failure'])
+        # decode result (will be `None` if no SuccessValue present)
+        # TODO: I think it's useful to have the decoded success value, but how do we want to format this into the return obj? we probably don't want to alter the raw NearTxResult as I'm doing here...
+        result["success_value_decoded"] = decode_near_success_value(result)
         return result
 
     @property
