@@ -22,15 +22,19 @@ class JsonProviderError(Exception):
 
 
 class JsonProvider(object):
-    def __init__(self, rpc_addr, proxies=None):
+    def __init__(self, rpc_addr, bypass_get_node_status_addr=None, proxies=None):
         if isinstance(rpc_addr, tuple):
             self._rpc_addr = "http://%s:%s" % rpc_addr
         else:
             self._rpc_addr = rpc_addr
+        self._bypass_get_node_status_addr = bypass_get_node_status_addr
         self.proxies = proxies
 
     def rpc_addr(self) -> str:
         return self._rpc_addr
+
+    def bypass_get_node_status_addr(self) -> str|None:
+        return self._bypass_get_node_status_addr
 
     def json_rpc(self, method: str, params: Union[dict, list, str], timeout: 'TimeoutType' = 2.0) -> dict:
         j = {
@@ -56,9 +60,14 @@ class JsonProvider(object):
                              timeout=timeout)
 
     def get_status(self, timeout: 'TimeoutType' = 2.0) -> dict:
-        r = requests.get("%s/status" % self.rpc_addr(), timeout=timeout)
-        r.raise_for_status()
-        return json.loads(r.content)
+        if self.bypass_get_node_status_addr():
+            r = requests.get("%s/status" % self.bypass_get_node_status_addr(), timeout=timeout)
+            r.raise_for_status()
+            return json.loads(r.content)
+        else:
+            r = requests.get("%s/status" % self.rpc_addr(), timeout=timeout)
+            r.raise_for_status()
+            return json.loads(r.content)
 
     def get_validators(self, timeout: 'TimeoutType' = 2.0) -> dict:
         return self.json_rpc("validators", [None], timeout=timeout)
