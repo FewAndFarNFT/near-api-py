@@ -56,9 +56,7 @@ class JsonProvider(object):
                              timeout=timeout)
 
     def get_status(self, timeout: 'TimeoutType' = 2.0) -> dict:
-        r = requests.get("%s/status" % self.rpc_addr(), timeout=timeout)
-        r.raise_for_status()
-        return json.loads(r.content)
+        return self.json_rpc("status", [None], timeout=timeout)
 
     def get_validators(self, timeout: 'TimeoutType' = 2.0) -> dict:
         return self.json_rpc("validators", [None], timeout=timeout)
